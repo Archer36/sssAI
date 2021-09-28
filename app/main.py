@@ -32,7 +32,7 @@ password = settings.get("password")
 verify_tls = settings.get("verify_tls")
 
 # If verify_tls isn't in json or is a blank string, verify by default
-if verify_tls is None or not verify_tls:
+if verify_tls is None or len(verify_tls) == 0:
     verify_tls = True
 
 detection_labels = ['car', 'person']
