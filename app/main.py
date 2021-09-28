@@ -1,7 +1,3 @@
-from fastapi import FastAPI
-from PIL import Image, ImageDraw, ImageFont
-
-import requests
 import logging
 import base64
 import time
@@ -9,7 +5,12 @@ import json
 import pickle
 import time
 import os
+from datetime import datetime
+
+import requests
 import pushover
+from fastapi import FastAPI
+from PIL import Image, ImageDraw, ImageFont
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 logging.info('App Started')
@@ -112,15 +113,16 @@ async def read_item(camera_id):
     # Check we are outside the trigger interval for this camera
     if camera_id in last_trigger:
         t = last_trigger[camera_id]
-        logging.info(f"Found last camera time for {camera_id} was {t}")
+        dt = datetime.fromtimestamp(t)
+        logging.info(f"Found last time for {cameraname} was {dt}")
         if (start - t) < trigger_interval:
-            msg = f"Skipping detection on camera {camera_id} since it was only triggered {start - t}s ago"
+            msg = f"Skipping detection on {cameraname} since it was only triggered {start - t}s ago"
             logging.info(msg)
             return (msg)
         else:
-            logging.info(f"Processing event on camera (last trigger was {start-t}s ago)")
+            logging.info(f"Processing event on {cameraname} (last trigger was {start-t}s ago)")
     else:
-        logging.info(f"No last camera time for {camera_id}")
+        logging.info(f"No last camera time for {cameraname}")
 
     url = f"{sssUrl}/webapi/entry.cgi?camStm=1&version=2&cameraId={camera_id}&api=%22SYNO.SurveillanceStation.Camera%22&method=GetSnapshot"
     triggerurl = cameradata[f"{camera_id}"]["triggerUrl"]
@@ -170,9 +172,12 @@ async def read_item(camera_id):
         label = prediction["label"]
         sizex = int(prediction["x_max"])-int(prediction["x_min"])
         sizey = int(prediction["y_max"])-int(prediction["y_min"])
-        item_string = f"{label} ({confidence}%)   {sizex}x{sizey}"
+        item_string = f"{label} - Confidence: {confidence}%" \
+                      f" Size:{sizex}x{sizey}" \
+                      f" X Bounds: {prediction['x_min']}/{prediction['x_max']}" \
+                      f" Y Bounds: {prediction['y_min']}/{prediction['y_max']}"
         items_found.append(item_string)
-        logging.debug(f"  {item_string}")
+        logging.info(f"  {item_string}")
 
         if not found and label in detection_labels and \
            sizex > min_sizex and \
