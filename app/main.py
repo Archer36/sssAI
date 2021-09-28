@@ -50,8 +50,6 @@ min_confidence = 0
 if "min_confidence" in settings:
     min_confidence = int(settings["min_confidence"])
 
-
-
 # If no trigger interval set then make it 60s (i.e. don't send another event from the triggered camera for at least 60s to stop flooding event notifications
 trigger_interval = 60
 if "triggerInterval" in settings:
@@ -61,9 +59,11 @@ capture_dir = "/captureDir"
 if "captureDir" in settings:
     capture_dir = settings["captureDir"]
 
+
 def save_cookies(requests_cookiejar, filename):
     with open(filename, 'wb') as f:
         pickle.dump(requests_cookiejar, f)
+
 
 def load_cookies(filename):
     with open(filename, 'rb') as f:
@@ -80,9 +80,11 @@ save_cookies(r.cookies, 'cookie')
 # Dictionary to save last trigger times for camera to stop flooding the capability
 last_trigger_fn = f"/tmp/last.dict"
 
+
 def save_last_trigger(last_trigger):
     with open(last_trigger_fn, 'wb') as f:
         pickle.dump(last_trigger, f)
+
 
 def load_last_trigger():
     if os.path.exists(last_trigger_fn):
@@ -91,9 +93,11 @@ def load_last_trigger():
     else:
         return {}
 
+
 def contains(rOutside, rInside):
     return rOutside["x_min"] < rInside["x_min"] < rInside["x_max"] < rOutside["x_max"] and \
         rOutside["y_min"] < rInside["y_min"] < rInside["y_max"] < rOutside["y_max"]
+
 
 # If you would like to ignore objects outside the ignore area instead of inside, set this to contains(rect, ignore_area):
 def isIgnored(rect, ignore_areas):
@@ -102,6 +106,7 @@ def isIgnored(rect, ignore_areas):
             logging.info('Object in ignore area, not triggering')
             return True
     return False
+
 
 @app.get("/{camera_id}")
 async def read_item(camera_id):
@@ -116,11 +121,14 @@ async def read_item(camera_id):
         dt = datetime.fromtimestamp(t)
         logging.info(f"Found last time for {cameraname} was {dt}")
         if (start - t) < trigger_interval:
-            msg = f"Skipping detection on {cameraname} since it was only triggered {start - t}s ago"
+            msg = f"Skipping detection on {cameraname} since it was" \
+                  f" only triggered {round(start - t, 1)}s ago"
             logging.info(msg)
             return (msg)
         else:
-            logging.info(f"Processing event on {cameraname} (last trigger was {start-t}s ago)")
+            logging.info(f"Processing event on {cameraname}"
+                         f" (last trigger"
+                         f" was {round(start-t, 1)}s ago)")
     else:
         logging.info(f"No last camera time for {cameraname}")
 
@@ -172,10 +180,10 @@ async def read_item(camera_id):
         label = prediction["label"]
         sizex = int(prediction["x_max"])-int(prediction["x_min"])
         sizey = int(prediction["y_max"])-int(prediction["y_min"])
-        item_string = f"{label} - Confidence: {confidence}%" \
-                      f" Size:{sizex}x{sizey}" \
-                      f" X Bounds: {prediction['x_min']}/{prediction['x_max']}" \
-                      f" Y Bounds: {prediction['y_min']}/{prediction['y_max']}"
+        item_string = f"Object: {label} - Confidence: {confidence}%" \
+                      f" Size: {sizex}x{sizey}" \
+                      f" X-Bounds: {prediction['x_min']}/{prediction['x_max']}" \
+                      f" Y-Bounds: {prediction['y_min']}/{prediction['y_max']}"
         items_found.append(item_string)
         logging.info(f"  {item_string}")
 
@@ -186,10 +194,13 @@ async def read_item(camera_id):
            not isIgnored(prediction, ignore_areas):
 
             payload = {}
+            logging.info(f"{confidence}% sure we found a {label}"
+                         f" - triggering {cameraname} via request to"
+                         f" the camera's webhook...")
             response = requests.request("GET", triggerurl, data=payload, verify=False)
             end = time.time()
             runtime = round(end - start, 1)
-            logging.info(f"{confidence}% sure we found a {label} - triggering {cameraname} - took {runtime} seconds")
+            logging.info(f"Process duration: {runtime} seconds")
 
             found = True
             last_trigger[camera_id] = time.time()
@@ -207,14 +218,16 @@ async def read_item(camera_id):
     runtime = round(end - start, 1)
     if found:
         file_name = save_image(predictions, cameraname, snapshot_file, ignore_areas)
-        pushover_message = f"Found {', '.join(items_found)} on camera {cameraname}"
+        pushover_message = f"Found {os.linesep.join(items_found)} on camera {cameraname}"
         logging.debug(f"Sending pushover message: {pushover_message}")
         with open(file_name, "r+b") as file:
-            po_client.message(pushover_message, title=f"Motion Dected on {cameraname}", attachment=file)
-        return ("triggering camera because something was found - took {runtime} seconds")
+            po_client.message(pushover_message,
+                              title=f"Motion Dected on {cameraname}",
+                              attachment=file)
+        return "Triggering camera because something was found - took {runtime} seconds"
     else:
         logging.info(f"{cameraname} triggered - nothing found - took {runtime} seconds")
-        return (f"{cameraname} triggered - nothing found")
+        return f"{cameraname} triggered - nothing found"
 
 
 def save_image(predictions, camera_name, snapshot_file, ignore_areas):
