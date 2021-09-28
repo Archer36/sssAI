@@ -216,7 +216,9 @@ async def read_item(camera_id):
     runtime = round(end - start, 1)
     if found:
         file_name = save_image(predictions, cameraname, snapshot_file, ignore_areas)
-        pushover_message = f"Found {os.linesep.join(items_found)} on camera {cameraname}"
+        pushover_message = f"Found object(s) on camera {cameraname}:" \
+                           f"{os.linesep}" \
+                           f"{os.linesep+os.linesep.join(items_found)} "
         logging.debug(f"Sending pushover message: {pushover_message}")
         with open(file_name, "r+b") as file:
             po_client.message(pushover_message,
