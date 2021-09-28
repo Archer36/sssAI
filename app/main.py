@@ -24,11 +24,16 @@ with open('config/cameras.json') as f:
 with open('config/settings.json') as f:
     settings = json.load(f)
 
-sssUrl = settings["sssUrl"]
-deepstackUrl = settings["deepstackUrl"]
-homebridgeWebhookUrl = settings["homebridgeWebhookUrl"]
-username = settings["username"]
-password = settings["password"]
+sssUrl = settings.get("sssUrl")
+deepstackUrl = settings.get("deepstackUrl")
+homebridgeWebhookUrl = settings.get("homebridgeWebhookUrl")
+username = settings.get("username")
+password = settings.get("password")
+verify_tls = settings.get("verify_tls")
+
+# If verify_tls isn't in json or is a blank string, verify by default
+if verify_tls is None or not verify_tls:
+    verify_tls = True
 
 detection_labels = ['car', 'person']
 if "detect_labels" in settings:
@@ -59,23 +64,13 @@ capture_dir = "/captureDir"
 if "captureDir" in settings:
     capture_dir = settings["captureDir"]
 
-
-def save_cookies(requests_cookiejar, filename):
-    with open(filename, 'wb') as f:
-        pickle.dump(requests_cookiejar, f)
-
-
-def load_cookies(filename):
-    with open(filename, 'rb') as f:
-        return pickle.load(f)
-
 # Create a session with synology
 url = f"{sssUrl}/webapi/auth.cgi?api=SYNO.API.Auth&method=Login&version=1&account={username}&passwd={password}&session=SurveillanceStation"
 
 #  Save cookies
 logging.info('Session login: ' + url)
-r = requests.get(url, verify=False)
-save_cookies(r.cookies, 'cookie')
+session = requests.Session()
+auth = session.get(url, verify=verify_tls)
 
 # Dictionary to save last trigger times for camera to stop flooding the capability
 last_trigger_fn = f"/tmp/last.dict"
@@ -147,8 +142,9 @@ async def read_item(camera_id):
                 "x_max": int(ignore_area["x_max"])
             })
 
-    response = requests.request("GET", url, cookies=load_cookies('cookie'), verify=False)
-    logging.debug('Requested snapshot: ' + url)
+    logging.debug('Requesting snapshot: ' + url)
+    response = session.get(url, verify=verify_tls)
+
     if response.status_code == 200:
         with open(f"/tmp/{camera_id}.jpg", 'wb') as f:
             f.write(response.content)
@@ -158,7 +154,7 @@ async def read_item(camera_id):
     image_data = open(snapshot_file, "rb").read()
     logging.info('Requesting detection from DeepStack...')
     s = time.perf_counter()
-    response = requests.post(f"{deepstackUrl}/v1/vision/detection", files={"image": image_data}, timeout=timeout).json()
+    response = requests.post(f"{deepstackUrl}/v1/vision/detection", files={"image": image_data}, timeout=timeout, verify=verify_tls).json()
 
     e = time.perf_counter()
     logging.debug(f'Got result: {json.dumps(response, indent=2)}. Time: {e-s}s')
@@ -197,7 +193,7 @@ async def read_item(camera_id):
             logging.info(f"{confidence}% sure we found a {label}"
                          f" - triggering {cameraname} via request to"
                          f" the camera's webhook...")
-            response = requests.request("GET", triggerurl, data=payload, verify=False)
+            response = requests.get(triggerurl, data=payload, verify=verify_tls)
             end = time.time()
             runtime = round(end - start, 1)
             logging.info(f"Process duration: {runtime} seconds")
@@ -208,7 +204,9 @@ async def read_item(camera_id):
             logging.debug(f"Saving last camera time for {camera_id} as {last_trigger[camera_id]}")
 
             if homebridgeWebhookUrl is not None and homekit_acc_id is not None:
-                hb = requests.get(f"{homebridgeWebhookUrl}/?accessoryId={homekit_acc_id}&state=true")
+                hb = requests.get(
+                    f"{homebridgeWebhookUrl}/?accessoryId={homekit_acc_id}&state=true",
+                    verify=verify_tls)
                 logging.debug(f"Sent message to homebridge webhook: {hb.status_code}")
             else:
                 logging.debug(f"Skipping HomeBridge Webhook since no webhookUrl or accessory Id")

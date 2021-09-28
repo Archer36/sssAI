@@ -11,12 +11,13 @@
 	"triggerInterval": 15,
 	"timeout": 180,
 	"min_confidence": 60,
-	"captureDir": "/captureDir",
+	"captureDir": "captureDir",
 	"homebridgeWebhookUrl": null,
     "sssai_api_port": 4242,
     "log_level": "INFO",
 	"access_log": "log/sssAI.err",
 	"error_log": "log/sssAI.acc",
     "json_logs": false,
-    "gunicorn_workers": 5
+    "gunicorn_workers": 5,
+	"verify_tls": true
 }
