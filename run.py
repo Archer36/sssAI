@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import logging
 import sys
@@ -9,7 +11,7 @@ from loguru import logger
 from app.main import app
 
 
-LOG_LEVEL = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
+LOG_LEVEL = logging.getLevelName(os.environ.get("LOG_LEVEL", "DEBUG"))
 JSON_LOGS = True if os.environ.get("JSON_LOGS", "0") == "1" else False
 WORKERS = int(os.environ.get("GUNICORN_WORKERS", "5"))
 
@@ -72,12 +74,12 @@ if __name__ == '__main__':
     logger.configure(handlers=[{"sink": sys.stdout, "serialize": JSON_LOGS}])
 
     options = {
-        "bind": "0.0.0.0:80",
+        "bind": "0.0.0.0:4242",
         "workers": WORKERS,
-        "accesslog": "",
-        "errorlog": "",
-        "worker_class": "uvicorn.workers.UvicornWorker",
-        "logger_class": StubbedGunicornLogger
+        "accesslog": "sssAI.acc",
+        "errorlog": "sssAI.err",
+        "worker_class": "uvicorn.workers.UvicornWorker"
+        #"logger_class": StubbedGunicornLogger
     }
 
     StandaloneApplication(app, options).run()

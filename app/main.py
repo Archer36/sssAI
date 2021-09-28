@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 import requests
 import logging
@@ -9,15 +9,18 @@ import json
 import pickle
 import time
 import os
+import pushover
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 logging.info('App Started')
 app = FastAPI()
 
-with open('/config/cameras.json') as f:
+po_client = pushover.Pushover()
+
+with open('config/cameras.json') as f:
     cameradata = json.load(f)
 
-with open('/config/settings.json') as f:
+with open('config/settings.json') as f:
     settings = json.load(f)
 
 sssUrl = settings["sssUrl"]
@@ -70,7 +73,7 @@ url = f"{sssUrl}/webapi/auth.cgi?api=SYNO.API.Auth&method=Login&version=1&accoun
 
 #  Save cookies
 logging.info('Session login: ' + url)
-r = requests.get(url)
+r = requests.get(url, verify=False)
 save_cookies(r.cookies, 'cookie')
 
 # Dictionary to save last trigger times for camera to stop flooding the capability
@@ -134,7 +137,7 @@ async def read_item(camera_id):
                 "x_max": int(ignore_area["x_max"])
             })
 
-    response = requests.request("GET", url, cookies=load_cookies('cookie'))
+    response = requests.request("GET", url, cookies=load_cookies('cookie'), verify=False)
     logging.debug('Requested snapshot: ' + url)
     if response.status_code == 200:
         with open(f"/tmp/{camera_id}.jpg", 'wb') as f:
@@ -161,13 +164,15 @@ async def read_item(camera_id):
 
     i = 0
     found = False
-
+    items_found = []
     for prediction in response["predictions"]:
         confidence = round(100 * prediction["confidence"])
         label = prediction["label"]
         sizex = int(prediction["x_max"])-int(prediction["x_min"])
         sizey = int(prediction["y_max"])-int(prediction["y_min"])
-        logging.debug(f"  {label} ({confidence}%)   {sizex}x{sizey}")
+        item_string = f"{label} ({confidence}%)   {sizex}x{sizey}"
+        items_found.append(item_string)
+        logging.debug(f"  {item_string}")
 
         if not found and label in detection_labels and \
            sizex > min_sizex and \
@@ -176,7 +181,7 @@ async def read_item(camera_id):
            not isIgnored(prediction, ignore_areas):
 
             payload = {}
-            response = requests.request("GET", triggerurl, data=payload)
+            response = requests.request("GET", triggerurl, data=payload, verify=False)
             end = time.time()
             runtime = round(end - start, 1)
             logging.info(f"{confidence}% sure we found a {label} - triggering {cameraname} - took {runtime} seconds")
@@ -196,7 +201,11 @@ async def read_item(camera_id):
     end = time.time()
     runtime = round(end - start, 1)
     if found:
-        save_image(predictions, cameraname, snapshot_file, ignore_areas)
+        file_name = save_image(predictions, cameraname, snapshot_file, ignore_areas)
+        pushover_message = f"Found {', '.join(items_found)} on camera {cameraname}"
+        logging.debug(f"Sending pushover message: {pushover_message}")
+        with open(file_name, "r+b") as file:
+            po_client.message(pushover_message, title=f"Motion Dected on {cameraname}", attachment=file)
         return ("triggering camera because something was found - took {runtime} seconds")
     else:
         logging.info(f"{cameraname} triggered - nothing found - took {runtime} seconds")
@@ -208,14 +217,15 @@ def save_image(predictions, camera_name, snapshot_file, ignore_areas):
     logging.debug(f"Saving new image file....")
     im = Image.open(snapshot_file)
     draw = ImageDraw.Draw(im)
+    font = ImageFont.truetype("Gidole-Regular.ttf", size=40)
 
     for object in predictions:
         confidence = round(100 * object["confidence"])
         label = f"{object['label']} ({confidence}%)"
         draw.rectangle((object["x_min"], object["y_min"], object["x_max"],
-                        object["y_max"]), outline=(255, 230, 66), width=2)
+                        object["y_max"]), outline=(192, 47, 29), width=2)
         draw.text((object["x_min"]+10, object["y_min"]+10),
-                  f"{label}", fill=(255, 230, 66))
+                  f"{label}", fill=(192, 47, 29), font=font)
 
     for ignore_area in ignore_areas:
         draw.rectangle((ignore_area["x_min"], ignore_area["y_min"],
@@ -228,3 +238,5 @@ def save_image(predictions, camera_name, snapshot_file, ignore_areas):
     end = time.time()
     runtime = round(end - start, 1)
     logging.debug(f"Saved captured and annotated image: {fn} in {runtime} seconds.")
+    
+    return fn
