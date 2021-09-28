@@ -76,8 +76,8 @@ if __name__ == '__main__':
     options = {
         "bind": "0.0.0.0:4242",
         "workers": WORKERS,
-        "accesslog": "sssAI.acc",
-        "errorlog": "sssAI.err",
+        "accesslog": "log/sssAI.acc",
+        "errorlog": "log/sssAI.err",
         "worker_class": "uvicorn.workers.UvicornWorker"
         #"logger_class": StubbedGunicornLogger
     }

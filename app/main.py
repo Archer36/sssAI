@@ -222,7 +222,7 @@ def save_image(predictions, camera_name, snapshot_file, ignore_areas):
     logging.debug(f"Saving new image file....")
     im = Image.open(snapshot_file)
     draw = ImageDraw.Draw(im)
-    font = ImageFont.truetype("Gidole-Regular.ttf", size=40)
+    font = ImageFont.truetype("fonts/Gidole-Regular.ttf", size=40)
 
     for object in predictions:
         confidence = round(100 * object["confidence"])

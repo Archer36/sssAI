@@ -12,5 +12,10 @@ ehthumbs.db
 Thumbs.db
 .DS_Store
 venv/
-!/config/cameras.json
-!/config/settings.json
+/config/cameras.json
+/config/settings.json
+log/*
+cookie
+fonts/*
+captureDir/*
+__pycache__/
