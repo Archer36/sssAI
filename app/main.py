@@ -225,11 +225,12 @@ async def read_item(camera_id):
             po_client.message(pushover_message,
                               title=f"Motion Dected on {cameraname}",
                               attachment=file)
-        return "Triggering camera because something was found - took {runtime} seconds"
+        return_string = "Triggering camera because something was found - took {runtime} seconds"
     else:
         logging.info(f"{cameraname} triggered - nothing found - took {runtime} seconds")
-        return f"{cameraname} triggered - nothing found"
+        return_string = f"{cameraname} triggered - nothing found"
     logging.info("End of processing")
+    return return_string
 
 
 def save_image(predictions, camera_name, snapshot_file, ignore_areas):
