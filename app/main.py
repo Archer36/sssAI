@@ -105,6 +105,7 @@ def isIgnored(rect, ignore_areas):
 
 @app.get("/{camera_id}")
 async def read_item(camera_id):
+    logging.info("Start of processing")
     start = time.time()
     cameraname = cameradata[f"{camera_id}"]["name"]
     predictions = None
@@ -228,6 +229,7 @@ async def read_item(camera_id):
     else:
         logging.info(f"{cameraname} triggered - nothing found - took {runtime} seconds")
         return f"{cameraname} triggered - nothing found"
+    logging.info("End of processing")
 
 
 def save_image(predictions, camera_name, snapshot_file, ignore_areas):
